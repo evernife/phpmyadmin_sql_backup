@@ -21,7 +21,7 @@
 # tested on Python 3.4+
 # requires: grab (http://grablib.org/)
 #
-# Christoph Haunschmidt 2016-03
+# Christoph Haunschmidt, started 2016-03
 
 import argparse
 import datetime
@@ -31,7 +31,7 @@ import sys
 
 import grab
 
-__version__ = '2016-03-12.3'
+__version__ = '2019-05-07.1'
 
 CONTENT_DISPOSITION_FILENAME_RE = re.compile(r'^.*filename="(?P<filename>[^"]+)".*$')
 DEFAULT_PREFIX_FORMAT = r'%Y-%m-%d--%H-%M-%S-UTC_'
@@ -49,7 +49,7 @@ def open_frame_if_phpmyadmin_3(g):
 
 def download_sql_backup(url, user, password, dry_run=False, overwrite_existing=False, prepend_date=True, basename=None,
                         output_directory=os.getcwd(), exclude_dbs=None, compression='none', prefix_format=None,
-                        timeout=60, http_auth=None):
+                        timeout=60, http_auth=None, server_name=None, **kwargs):
     prefix_format = prefix_format or DEFAULT_PREFIX_FORMAT
     exclude_dbs = exclude_dbs.split(',') or []
     encoding = '' if compression == 'gzip' else 'gzip'
@@ -61,6 +61,8 @@ def download_sql_backup(url, user, password, dry_run=False, overwrite_existing=F
 
     g.doc.set_input_by_id('input_username', user)
     g.doc.set_input_by_id('input_password', password)
+    if server_name:
+        g.doc.set_input_by_id('input_servername', server_name)
     g.submit()
 
     if not is_login_successful(g):
@@ -75,7 +77,7 @@ def download_sql_backup(url, user, password, dry_run=False, overwrite_existing=F
     dbs_to_dump = [db_name for db_name in dbs_available if db_name not in exclude_dbs]
     if not dbs_to_dump:
         print('Warning: no databases to dump (databases available: "{}")'.format('", "'.join(dbs_available)),
-              file=sys.stderr)
+            file=sys.stderr)
 
     file_response = g.submit(
         extra_post=[('db_select[]', db_name) for db_name in dbs_to_dump] + [('compression', compression)])
@@ -112,7 +114,7 @@ def download_sql_backup(url, user, password, dry_run=False, overwrite_existing=F
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Automates the download of SQL dump backups via a phpMyAdmin web interface.',
-        epilog='Written by Christoph Haunschmidt, version: {}'.format(__version__))
+        epilog='Written by Christoph Haunschmidt et al., version: {}'.format(__version__))
 
     parser.add_argument('url', metavar='URL', help='phpMyAdmin login page url')
     parser.add_argument('user', metavar='USERNAME', help='phpMyAdmin login username')
@@ -120,14 +122,18 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output-directory', default=os.getcwd(),
                         help='output directory for the SQL dump file (default: the current working directory)')
     parser.add_argument('-p', '--prepend-date', action='store_true', default=False,
-                        help='prepend current UTC date & time to the filename; see the --prefix-format option for custom formatting')
+                        help='prepend current UTC date & time to the filename; '
+                             'see the --prefix-format option for custom formatting')
     parser.add_argument('-e', '--exclude-dbs', default='',
                         help='comma-separated list of database names to exclude from the dump')
-    parser.add_argument('--compression', default='none', choices=['none', 'zip', 'gzip', 'bzip2'],
+    parser.add_argument('-s', '--server-name', default=None,
+                        help='mysql server hostname to supply if enabled as field on login page')
+    parser.add_argument('--compression', default='none', choices=['none', 'zip', 'gzip'],
                         help='compression method for the output file - must be supported by the server (default: %(default)s)')
     parser.add_argument('--basename', default=None,
-                        help='the desired basename (without extension) of the SQL dump file (default: the name given by phpMyAdmin); '
-                             'you can also set an empty basename "" in combination with --prepend-date and --prefix-format')
+                        help='the desired basename (without extension) of the SQL dump file (default: the name given '
+                             'by phpMyAdmin); you can also set an empty basename "" in combination with '
+                             '--prepend-date and --prefix-format')
     parser.add_argument('--timeout', type=int, default=60,
                         help='timeout in seconds for the requests (default: %(default)s)')
     parser.add_argument('--overwrite-existing', action='store_true', default=False,
@@ -139,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='dry run, do not actually download any file')
     parser.add_argument('--http-auth', default=None,
-                        help='Basic http authentication, using format "username:password"')
+                        help='Basic HTTP authentication, using format "username:password"')
 
     args = parser.parse_args()
 
